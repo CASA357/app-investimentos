@@ -1,68 +1,72 @@
 import streamlit as st
 import pandas as pd
 
-# -------------------------------------------------------------------
-# 1. SIMULAÇÃO DE LIGAÇÃO ÀS APIS (Substituiremos pelas reais depois)
-# -------------------------------------------------------------------
-def get_xtb_data():
-    # Aqui entrará o código WebSocket para a XStation5
-    return [
-        {"Ativo": "Bitcoin", "Corretora": "XTB", "Valor Atual (€)": 500, "Alvo (%)": 15},
-        {"Ativo": "Ouro", "Corretora": "XTB", "Valor Atual (€)": 1200, "Alvo (%)": 15}
-    ]
+# --- CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Gestor de Portefólio Total", layout="wide")
 
-def get_t212_data():
-    # Aqui entrará o código HTTP Request para a API da Trading 212
-    return [
-        {"Ativo": "VWCE (Global)", "Corretora": "Trading 212", "Valor Atual (€)": 4500, "Alvo (%)": 50},
-        {"Ativo": "S&P 500", "Corretora": "Trading 212", "Valor Atual (€)": 1800, "Alvo (%)": 20}
-    ]
+st.title("📈 Controlo de Investimentos: XTB, T212 e Trade Republic")
 
-# -------------------------------------------------------------------
-# 2. INTERFACE E LÓGICA DA APP
-# -------------------------------------------------------------------
-st.set_page_config(page_title="O Meu Portefólio", layout="wide")
-st.title("📊 Gestor de Portefólio - XTB & Trading 212")
+# --- 1. ENTRADA DE DADOS (Saldos Atuais) ---
+# Por agora, vamos inserir manualmente. No próximo passo, ligamos as APIs.
+st.sidebar.header("💰 Valores Atuais na Carteira")
 
-# Barra lateral para inputs
-st.sidebar.header("Novo Investimento")
-novo_capital = st.sidebar.number_input("Capital a adicionar (€):", min_value=0.0, value=1000.0, step=50.0)
+with st.sidebar.expander("Saldos por Corretora"):
+    valor_xtb = st.number_input("Total na XTB (€)", min_value=0.0, value=1000.0)
+    valor_t212 = st.number_input("Total na Trading 212 (€)", min_value=0.0, value=2500.0)
+    valor_tr = st.number_input("Total na Trade Republic (€)", min_value=0.0, value=1500.0)
 
-# Juntar os dados das duas corretoras
-dados_carteira = get_xtb_data() + get_t212_data()
-df = pd.DataFrame(dados_carteira)
+st.sidebar.divider()
+st.sidebar.header("💸 Novo Aporte")
+novo_investimento = st.sidebar.number_input("Quanto vais investir hoje? (€)", min_value=0.0, value=500.0)
 
-# Cálculos Globais
-valor_atual_total = df["Valor Atual (€)"].sum()
-valor_futuro_total = valor_atual_total + novo_capital
-soma_alvos = df["Alvo (%)"].sum()
+# --- 2. DEFINIÇÃO DA ESTRATÉGIA (%) ---
+# Aqui defines quanto queres ter de cada coisa
+st.write("### 🎯 Definir Alvos de Alocação")
+st.info("Define que percentagem da tua carteira total queres em cada corretora ou ativo.")
 
-# Mostrar avisos se as percentagens não baterem certo
-if soma_alvos != 100:
-    st.error(f"Atenção: A soma dos teus alvos é {soma_alvos}%. Tem de ser exatamente 100%.")
+col_a, col_b, col_c = st.columns(3)
+alvo_xtb = col_a.slider("% Alvo XTB", 0, 100, 20)
+alvo_t212 = col_b.slider("% Alvo Trading 212", 0, 100, 50)
+alvo_tr = col_c.slider("% Alvo Trade Republic", 0, 100, 30)
 
-# Matemática de Rebalanceamento
-df["Valor Alvo (€)"] = valor_futuro_total * (df["Alvo (%)"] / 100)
-df["Ação Necessária (€)"] = df["Valor Alvo (€)"] - df["Valor Atual (€)"]
+total_alvo = alvo_xtb + alvo_t212 + alvo_tr
 
-# Formatar a coluna de Ação para dizer "Comprar" ou "Vender"
-def formatar_acao(valor):
-    if valor > 0:
-        return f"🟢 Comprar: {valor:.2f} €"
-    elif valor < 0:
-        return f"🔴 Vender: {abs(valor):.2f} €"
-    return "⚪ Equilibrado"
+if total_alvo != 100:
+    st.warning(f"⚠️ A soma das percentagens é {total_alvo}%. Deve ser 100% para o cálculo estar correto.")
 
-df["O que fazer?"] = df["Ação Necessária (€)"].apply(formatar_acao)
+# --- 3. CÁLCULOS DE REBALANCEAMENTO ---
+valor_total_atual = valor_xtb + valor_t212 + valor_tr
+valor_total_pos_investimento = valor_total_atual + novo_investimento
 
-# Limpar visualização da tabela
-df_display = df[["Ativo", "Corretora", "Valor Atual (€)", "Alvo (%)", "O que fazer?"]]
+# Criar tabela de dados
+dados = {
+    "Corretora": ["XTB", "Trading 212", "Trade Republic"],
+    "Valor Atual (€)": [valor_xtb, valor_t212, valor_tr],
+    "Alvo (%)": [alvo_xtb, alvo_t212, alvo_tr]
+}
 
-# Mostrar Métricas no topo
-col1, col2, col3 = st.columns(3)
-col1.metric("Valor Atual da Carteira", f"{valor_atual_total:.2f} €")
-col2.metric("Capital a Adicionar", f"{novo_capital:.2f} €")
-col3.metric("Valor Futuro Projetado", f"{valor_futuro_total:.2f} €")
+df = pd.DataFrame(dados)
 
-st.write("### O teu plano de ação:")
-st.dataframe(df_display, use_container_width=True, hide_index=True)
+# Cálculo do valor que deveria ter
+df["Valor Ideal (€)"] = (valor_total_pos_investimento * (df["Alvo (%)"] / 100))
+
+# Cálculo da diferença (Quanto falta investir)
+df["A Reforçar (€)"] = df["Valor Ideal (€)"] - df["Valor Atual (€)"]
+
+# --- 4. EXIBIÇÃO DOS RESULTADOS ---
+st.divider()
+m1, m2, m3 = st.columns(3)
+m1.metric("Total Atual", f"{valor_total_atual:.2f} €")
+m2.metric("Novo Investimento", f"{novo_investimento:.2f} €")
+m3.metric("Novo Total Projetado", f"{valor_total_pos_investimento:.2f} €")
+
+st.write("### 🚀 Sugestão de Reforço")
+
+# Formatar a tabela para ficar fácil de ler
+def destacar_reforco(val):
+    color = 'green' if val > 0 else 'white'
+    return f'color: {color}; font-weight: bold'
+
+st.dataframe(df.style.applymap(destacar_reforco, subset=['A Reforçar (€)']), use_container_width=True)
+
+st.success("Dica: Os valores em verde na coluna 'A Reforçar' são os que deves depositar em cada conta hoje.")
