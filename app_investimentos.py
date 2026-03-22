@@ -1,72 +1,116 @@
 import streamlit as st
 import pandas as pd
+import yfinance as yf
 
-# --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="Gestor de Portefólio Total", layout="wide")
+st.set_page_config(page_title="Carteira Bruno - Gestão Total", layout="wide")
 
-st.title("📈 Controlo de Investimentos: XTB, T212 e Trade Republic")
+st.title("🚀 Carteira Bruno: XTB, Trading 212 & Trade Republic")
 
-# --- 1. ENTRADA DE DADOS (Saldos Atuais) ---
-# Por agora, vamos inserir manualmente. No próximo passo, ligamos as APIs.
-st.sidebar.header("💰 Valores Atuais na Carteira")
+# --- 1. CONFIGURAÇÃO INICIAL DOS ATIVOS ---
+# Nota: Adicionei ".DE" aos tickers porque a maioria destes ETFs UCITS são negociados na Xetra (Alemanha) em Euros.
+if 'dados_carteira' not in st.session_state:
+    data = [
+        # XTB
+        {"Conta": "XTB", "Ativo": "INVESCO NASDAQ-100", "Ticker": "EQQB.DE", "Alvo %": 15.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "MSCI WORLD QUALITY", "Ticker": "IWQU.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "MSCI WORLD MIN VOL", "Ticker": "XDEB.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "GLOBAL SMALL CAP VALUE", "Ticker": "AVWS.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "VANGUARD DEV EUROPE", "Ticker": "VWCG.DE", "Alvo %": 20.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "SPDR MSCI EM", "Ticker": "SPYM.DE", "Alvo %": 15.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "GLOBAL INFRASTRUCTURE", "Ticker": "CBUX.DE", "Alvo %": 5.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "PHYSICAL GOLD", "Ticker": "PHGP.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "XTB", "Ativo": "COMMODITIES EX-AGRI", "Ticker": "LYTR.DE", "Alvo %": 5.0, "Qtd": 0.0},
+        
+        # TRADING 212
+        {"Conta": "T212", "Ativo": "INVESCO NASDAQ-100", "Ticker": "EQAC.DE", "Alvo %": 15.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "MSCI WORLD QUALITY", "Ticker": "IWQU.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "MSCI WORLD MIN VOL", "Ticker": "XDEB.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "GLOBAL SMALL CAP VALUE", "Ticker": "AVWS.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "VANGUARD DEV EUROPE", "Ticker": "VWCG.DE", "Alvo %": 20.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "SPDR MSCI EM", "Ticker": "SPYM.DE", "Alvo %": 15.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "GLOBAL INFRASTRUCTURE", "Ticker": "CBUX.DE", "Alvo %": 5.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "PHYSICAL GOLD", "Ticker": "PHGP.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "T212", "Ativo": "CRYPTO BASKET HODL", "Ticker": "HODL.SW", "Alvo %": 5.0, "Qtd": 0.0},
 
-with st.sidebar.expander("Saldos por Corretora"):
-    valor_xtb = st.number_input("Total na XTB (€)", min_value=0.0, value=1000.0)
-    valor_t212 = st.number_input("Total na Trading 212 (€)", min_value=0.0, value=2500.0)
-    valor_tr = st.number_input("Total na Trade Republic (€)", min_value=0.0, value=1500.0)
+        # TRADE REPUBLIC
+        {"Conta": "TR", "Ativo": "INVESCO NASDAQ-100", "Ticker": "EQQB.DE", "Alvo %": 15.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "MSCI WORLD QUALITY", "Ticker": "IWQU.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "MSCI WORLD MIN VOL", "Ticker": "XDEB.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "GLOBAL SMALL CAP VALUE", "Ticker": "AVWS.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "VANGUARD DEV EUROPE", "Ticker": "VWCG.DE", "Alvo %": 20.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "SPDR MSCI EM", "Ticker": "SPYM.DE", "Alvo %": 15.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "GLOBAL INFRASTRUCTURE", "Ticker": "CBUX.DE", "Alvo %": 5.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "PHYSICAL GOLD", "Ticker": "PHGP.DE", "Alvo %": 10.0, "Qtd": 0.0},
+        {"Conta": "TR", "Ativo": "DEV MARKETS PROPERTY", "Ticker": "SXRA.DE", "Alvo %": 5.0, "Qtd": 0.0},
+    ]
+    st.session_state.dados_carteira = pd.DataFrame(data)
 
-st.sidebar.divider()
-st.sidebar.header("💸 Novo Aporte")
-novo_investimento = st.sidebar.number_input("Quanto vais investir hoje? (€)", min_value=0.0, value=500.0)
+# --- 2. ENTRADA DE DADOS E ABAS ---
+st.sidebar.header("💵 Novo Capital")
+valor_reforco = st.sidebar.number_input("Valor para investir hoje (€)", min_value=0.0, value=1000.0)
 
-# --- 2. DEFINIÇÃO DA ESTRATÉGIA (%) ---
-# Aqui defines quanto queres ter de cada coisa
-st.write("### 🎯 Definir Alvos de Alocação")
-st.info("Define que percentagem da tua carteira total queres em cada corretora ou ativo.")
+tab1, tab2, tab3 = st.tabs(["🏛️ XTB", "📱 Trading 212", "🇪🇺 Trade Republic"])
 
-col_a, col_b, col_c = st.columns(3)
-alvo_xtb = col_a.slider("% Alvo XTB", 0, 100, 20)
-alvo_t212 = col_b.slider("% Alvo Trading 212", 0, 100, 50)
-alvo_tr = col_c.slider("% Alvo Trade Republic", 0, 100, 30)
+def editar_conta(nome_conta):
+    df_filtrado = st.session_state.dados_carteira[st.session_state.dados_carteira["Conta"] == nome_conta]
+    return st.data_editor(df_filtrado, hide_index=True, use_container_width=True, key=f"editor_{nome_conta}")
 
-total_alvo = alvo_xtb + alvo_t212 + alvo_tr
+with tab1:
+    df_xtb = editar_conta("XTB")
+with tab2:
+    df_t212 = editar_conta("T212")
+with tab3:
+    df_tr = editar_conta("TR")
 
-if total_alvo != 100:
-    st.warning(f"⚠️ A soma das percentagens é {total_alvo}%. Deve ser 100% para o cálculo estar correto.")
+# --- 3. CÁLCULO REAL ---
+if st.button("🔄 Calcular Reforço em Tempo Real"):
+    # Juntar tudo
+    df_total = pd.concat([df_xtb, df_t212, df_tr])
+    
+    with st.spinner('A atualizar preços dos 27 ativos...'):
+        tickers_unicos = df_total["Ticker"].unique().tolist()
+        precos = {}
+        for t in tickers_unicos:
+            try:
+                precos[t] = yf.Ticker(t).history(period="1d")["Close"].iloc[-1]
+            except:
+                precos[t] = 0.0
 
-# --- 3. CÁLCULOS DE REBALANCEAMENTO ---
-valor_total_atual = valor_xtb + valor_t212 + valor_tr
-valor_total_pos_investimento = valor_total_atual + novo_investimento
+        df_total["Preço (€)"] = df_total["Ticker"].map(precos)
+        df_total["Valor Atual (€)"] = df_total["Qtd"] * df_total["Preço (€)"]
+        
+        # O cálculo de alvo é baseado no total de CADA CONTA ou GLOBAL? 
+        # Vou assumir que queres manter a % dentro de cada conta.
+        resultados_finais = []
+        for conta in ["XTB", "T212", "TR"]:
+            df_c = df_total[df_total["Conta"] == conta].copy()
+            # Assumindo que o reforço é distribuído proporcionalmente ou escolhes uma conta?
+            # Para simplificar: o reforço aqui é tratado por conta.
+            total_conta = df_c["Valor Atual (€)"].sum()
+            # Se quiseres dividir os 1000€ pelas 3 contas, teríamos de ajustar. 
+            # Aqui vou assumir que o 'valor_reforco' é o que tens para gastar NO TOTAL.
+            # Vou dividir o reforço pelo peso de cada conta atual.
+            total_global_atual = df_total["Valor Atual (€)"].sum()
+            peso_conta = total_conta / total_global_atual if total_global_atual > 0 else 0.33
+            
+            reforco_conta = valor_reforco * peso_conta
+            novo_total_conta = total_conta + reforco_conta
+            
+            df_c["Valor Ideal (€)"] = novo_total_conta * (df_c["Alvo %"] / 100)
+            df_c["Comprar (€)"] = (df_c["Valor Ideal (€)"] - df_c["Valor Atual (€)"]).clip(lower=0)
+            resultados_finais.append(df_c)
 
-# Criar tabela de dados
-dados = {
-    "Corretora": ["XTB", "Trading 212", "Trade Republic"],
-    "Valor Atual (€)": [valor_xtb, valor_t212, valor_tr],
-    "Alvo (%)": [alvo_xtb, alvo_t212, alvo_tr]
-}
+        df_final = pd.concat(resultados_finais)
 
-df = pd.DataFrame(dados)
+        # MOSTRAR RESULTADOS
+        st.success("Cálculo Concluído!")
+        col1, col2 = st.columns(2)
+        col1.metric("Património Total", f"{df_total['Valor Atual (€)'].sum():.2f} €")
+        col2.metric("Reforço Total", f"{valor_reforco:.2f} €")
 
-# Cálculo do valor que deveria ter
-df["Valor Ideal (€)"] = (valor_total_pos_investimento * (df["Alvo (%)"] / 100))
+        st.write("### 🛒 Lista de Compras (Onde colocar o dinheiro)")
+        compras = df_final[df_final["Comprar (€)"] > 0.01][["Conta", "Ativo", "Ticker", "Comprar (€)"]]
+        st.table(compras.style.format({"Comprar (€)": "{:.2f} €"}))
 
-# Cálculo da diferença (Quanto falta investir)
-df["A Reforçar (€)"] = df["Valor Ideal (€)"] - df["Valor Atual (€)"]
-
-# --- 4. EXIBIÇÃO DOS RESULTADOS ---
-st.divider()
-m1, m2, m3 = st.columns(3)
-m1.metric("Total Atual", f"{valor_total_atual:.2f} €")
-m2.metric("Novo Investimento", f"{novo_investimento:.2f} €")
-m3.metric("Novo Total Projetado", f"{valor_total_pos_investimento:.2f} €")
-
-st.write("### 🚀 Sugestão de Reforço")
-
-# Formatar a tabela para ficar fácil de ler
-def destacar_reforco(val):
-    color = 'green' if val > 0 else 'white'
-    return f'color: {color}; font-weight: bold'
-
-st.dataframe(df.style.applymap(destacar_reforco, subset=['A Reforçar (€)']), use_container_width=True)
-
-st.success("Dica: Os valores em verde na coluna 'A Reforçar' são os que deves depositar em cada conta hoje.")
+# Guardar estados
+st.session_state.dados_carteira = pd.concat([df_xtb, df_t212, df_tr])
